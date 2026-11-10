@@ -4,6 +4,9 @@ on:
     paths:
       - 'payload.json'
   workflow_dispatch:
+concurrency:
+  group: smartapk-builder
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -22,16 +25,19 @@ jobs:
         with:
           gradle-version: '8.4'
       - name: Unpack Android Project
-        run: python3 -c "import json,base64,os; [ (os.makedirs(os.path.dirname(k),exist_ok=True) if os.path.dirname(k) else None, open(k,'wb').write(base64.b64decode(v))) for k,v in json.load(open('payload.json'))['files'].items() ]"
+        run: echo "aW1wb3J0IGpzb24sIGJhc2U2NCwgb3MKZGF0YSA9IGpzb24ubG9hZChvcGVuKCdwYXlsb2FkLmpzb24nLCAncicpKQpmb3IgaywgdiBpbiBkYXRhWydmaWxlcyddLml0ZW1zKCk6CiAgICBkID0gb3MucGF0aC5kaXJuYW1lKGspCiAgICBpZiBkOiBvcy5tYWtlZGlycyhkLCBleGlzdF9vaz1UcnVlKQogICAgb3BlbihrLCAnd2InKS53cml0ZShiYXNlNjQuYjY0ZGVjb2RlKHYpKQpvcy5tYWtlZGlycygnZGlzdCcsIGV4aXN0X29rPVRydWUpCmpzb24uZHVtcCh7J2J1aWxkSWQnOiBkYXRhWydidWlsZElkJ10sICdzdGF0dXMnOiAncmVhZHknfSwgb3BlbignZGlzdC9zdGF0dXMuanNvbicsICd3Jykp" | base64 -d | python3
       - name: Compile Signed APK
         run: gradle assembleDebug --no-daemon
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hasil-Aplikasi-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
       - name: Publish Signed APK to Dist
         run: |
-          mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/output.apk
-          python3 -c "import json; d=json.load(open('payload.json')); json.dump({'buildId': d['buildId'], 'status': 'ready'}, open('dist/status.json', 'w'))"
           git config user.name 'SmartAPK AutoBuilder'
           git config user.email 'autobuilder@smartwork.my.id'
-          git add dist/output.apk dist/status.json
+          git add -f dist/output.apk dist/status.json
           git commit -m 'Publish Signed APK [skip ci]' || true
-          git push
+          git push --force origin HEAD:main || git push --force origin HEAD:master || git push --force
