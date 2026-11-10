@@ -1,3 +1,4 @@
+# v3.0_DEEP_SYNC
 name: SmartAPK Instant Cloud Builder
 on:
   push:
@@ -25,9 +26,9 @@ jobs:
         with:
           gradle-version: '8.4'
       - name: Unpack Android Project
-        run: echo "aW1wb3J0IGpzb24sIGJhc2U2NCwgb3MKZGF0YSA9IGpzb24ubG9hZChvcGVuKCdwYXlsb2FkLmpzb24nLCAncicpKQpmb3IgaywgdiBpbiBkYXRhWydmaWxlcyddLml0ZW1zKCk6CiAgICBkID0gb3MucGF0aC5kaXJuYW1lKGspCiAgICBpZiBkOiBvcy5tYWtlZGlycyhkLCBleGlzdF9vaz1UcnVlKQogICAgb3BlbihrLCAnd2InKS53cml0ZShiYXNlNjQuYjY0ZGVjb2RlKHYpKQpvcy5tYWtlZGlycygnZGlzdCcsIGV4aXN0X29rPVRydWUpCmpzb24uZHVtcCh7J2J1aWxkSWQnOiBkYXRhWydidWlsZElkJ10sICdzdGF0dXMnOiAncmVhZHknfSwgb3BlbignZGlzdC9zdGF0dXMuanNvbicsICd3Jykp" | base64 -d | python3
+        run: echo "aW1wb3J0IGpzb24sIGJhc2U2NCwgb3MsIHNodXRpbAppZiBvcy5wYXRoLmV4aXN0cygnYXBwJyk6IHNodXRpbC5ybXRyZWUoJ2FwcCcpCmRhdGEgPSBqc29uLmxvYWQob3BlbigncGF5bG9hZC5qc29uJywgJ3InKSkKZm9yIGssIHYgaW4gZGF0YVsnZmlsZXMnXS5pdGVtcygpOgogICAgZCA9IG9zLnBhdGguZGlybmFtZShrKQogICAgaWYgZDogb3MubWFrZWRpcnMoZCwgZXhpc3Rfb2s9VHJ1ZSkKICAgIG9wZW4oaywgJ3diJykud3JpdGUoYmFzZTY0LmI2NGRlY29kZSh2KSkKb3MubWFrZWRpcnMoJ2Rpc3QnLCBleGlzdF9vaz1UcnVlKQpqc29uLmR1bXAoeydidWlsZElkJzogZGF0YVsnYnVpbGRJZCddLCAnc3RhdHVzJzogJ3JlYWR5J30sIG9wZW4oJ2Rpc3Qvc3RhdHVzLmpzb24nLCAndycpKQ==" | base64 -d | python3
       - name: Compile Signed APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -40,4 +41,5 @@ jobs:
           git config user.email 'autobuilder@smartwork.my.id'
           git add -f dist/output.apk dist/status.json
           git commit -m 'Publish Signed APK [skip ci]' || true
+          git pull --rebase -X ours origin main || git pull --rebase -X ours origin master || true
           git push --force origin HEAD:main || git push --force origin HEAD:master || git push --force
