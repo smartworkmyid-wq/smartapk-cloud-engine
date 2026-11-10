@@ -1,168 +1,37 @@
 name: SmartAPK Instant Cloud Builder
-
 on:
   push:
     paths:
       - 'payload.json'
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   compile-apk:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - name: Setup Gradle 8.4
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
-
-      - name: Generate Android Project from Payload
-        run: |
-          python3 - << 'EOF'
-          import json, base64, os
-
-          with open('payload.json', 'r') as f:
-              data = json.load(f)
-
-          app_name = data.get('appName', 'SmartApp').replace('"', '')
-          pkg = data.get('packageName', 'com.smartwork.app')
-          orientation = data.get('orientation', 'portrait')
-          pkg_path = pkg.replace('.', '/')
-
-          os.makedirs(f'app/src/main/java/{pkg_path}', exist_ok=True)
-          os.makedirs('app/src/main/assets', exist_ok=True)
-          os.makedirs('app/src/main/res/mipmap-xxxhdpi', exist_ok=True)
-
-          with open('app/src/main/assets/index.html', 'wb') as f:
-              f.write(base64.b64decode(data['htmlBase64']))
-
-          with open('app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 'wb') as f:
-              f.write(base64.b64decode(data['iconBase64']))
-
-          with open('settings.gradle', 'w') as f:
-              f.write('''pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = "SmartInstantAPK"
-          include ':app'
-          ''')
-
-          with open('build.gradle', 'w') as f:
-              f.write("plugins { id 'com.android.application' version '8.1.2' apply false }\n")
-
-          with open('gradle.properties', 'w') as f:
-              f.write("org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\n")
-
-          with open('app/build.gradle', 'w') as f:
-              f.write(f'''plugins {{ id 'com.android.application' }}
-          android {{
-              namespace '{pkg}'
-              compileSdk 34
-              defaultConfig {{
-                  applicationId "{pkg}"
-                  minSdk 23
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0.0"
-              }}
-              buildTypes {{
-                  release {{
-                      minifyEnabled false
-                      signingConfig signingConfigs.debug
-                  }}
-              }}
-              compileOptions {{
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }}
-          }}
-          ''')
-
-          with open('app/src/main/AndroidManifest.xml', 'w') as f:
-              f.write(f'''<?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="{app_name}"
-                  android:usesCleartextTraffic="true"
-                  android:hardwareAccelerated="true"
-                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="{orientation}"
-                      android:configChanges="orientation|screenSize|keyboardHidden">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>''')
-
-          with open(f'app/src/main/java/{pkg_path}/MainActivity.java', 'w') as f:
-              f.write(f'''package {pkg};
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-
-          public class MainActivity extends Activity {{
-              private WebView webView;
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {{
-                  super.onCreate(savedInstanceState);
-                  webView = new WebView(this);
-                  setContentView(webView);
-                  WebSettings s = webView.getSettings();
-                  s.setJavaScriptEnabled(true);
-                  s.setDomStorageEnabled(true);
-                  s.setDatabaseEnabled(true);
-                  s.setAllowFileAccess(true);
-                  s.setAllowContentAccess(true);
-                  s.setMediaPlaybackRequiresUserGesture(false);
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient());
-                  webView.loadUrl("file:///android_asset/index.html");
-              }}
-              @Override
-              public void onBackPressed() {{
-                  if (webView != null && webView.canGoBack()) webView.goBack();
-                  else super.onBackPressed();
-              }}
-          }}''')
-          EOF
-
-      - name: Compile Signed Release APK
-        run: gradle assembleRelease --no-daemon
-
-      - name: Publish APK Binary for Auto-Download
+      - name: Unpack Android Project
+        run: python3 -c "import json,base64,os; [ (os.makedirs(os.path.dirname(k),exist_ok=True) if os.path.dirname(k) else None, open(k,'wb').write(base64.b64decode(v))) for k,v in json.load(open('payload.json'))['files'].items() ]"
+      - name: Compile Signed APK
+        run: gradle assembleDebug --no-daemon
+      - name: Publish Signed APK to Dist
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk dist/output.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/output.apk
           python3 -c "import json; d=json.load(open('payload.json')); json.dump({'buildId': d['buildId'], 'status': 'ready'}, open('dist/status.json', 'w'))"
-          git config user.name "SmartAPK AutoBuilder"
-          git config user.email "autobuilder@smartwork.my.id"
+          git config user.name 'SmartAPK AutoBuilder'
+          git config user.email 'autobuilder@smartwork.my.id'
           git add dist/output.apk dist/status.json
-          git commit -m "Publish Signed APK [skip ci]" || true
+          git commit -m 'Publish Signed APK [skip ci]' || true
           git push
