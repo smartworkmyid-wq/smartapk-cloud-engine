@@ -1,5 +1,5 @@
-# v3.0_DEEP_SYNC
-name: SmartAPK Instant Cloud Builder
+# v4.0_DUAL_APK_EXE
+name: SmartAPK and EXE Dual Cloud Builder
 on:
   push:
     paths:
@@ -11,11 +11,19 @@ concurrency:
 permissions:
   contents: write
 jobs:
-  compile-apk:
+  compile-apk-and-exe:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
+      - name: Unpack Project Payload
+        run: echo "aW1wb3J0IGpzb24sIGJhc2U2NCwgb3MsIHNodXRpbAppZiBvcy5wYXRoLmV4aXN0cygnYXBwJyk6IHNodXRpbC5ybXRyZWUoJ2FwcCcpCmlmIG9zLnBhdGguZXhpc3RzKCd3aW5fZXhlJyk6IHNodXRpbC5ybXRyZWUoJ3dpbl9leGUnKQpkYXRhID0ganNvbi5sb2FkKG9wZW4oJ3BheWxvYWQuanNvbicsICdyJykpCmZvciBrLCB2IGluIGRhdGFbJ2ZpbGVzJ10uaXRlbXMoKToKICAgIGQgPSBvcy5wYXRoLmRpcm5hbWUoaykKICAgIGlmIGQ6IG9zLm1ha2VkaXJzKGQsIGV4aXN0X29rPVRydWUpCiAgICBvcGVuKGssICd3YicpLndyaXRlKGJhc2U2NC5iNjRkZWNvZGUodikpCm9zLm1ha2VkaXJzKCdkaXN0JywgZXhpc3Rfb2s9VHJ1ZSkKanNvbi5kdW1wKHsnYnVpbGRJZCc6IGRhdGFbJ2J1aWxkSWQnXSwgJ3N0YXR1cyc6ICdyZWFkeSd9LCBvcGVuKCdkaXN0L3N0YXR1cy5qc29uJywgJ3cnKSk=" | base64 -d | python3
+      - name: Compile Standalone Windows EXE
+        run: |
+          if ! command -v mcs >/dev/null 2>&1; then
+            sudo apt-get update -y && sudo apt-get install -y mono-mcs
+          fi
+          mcs -target:winexe -out:dist/output.exe -win32icon:win_exe/app.ico -resource:app/src/main/assets/index.html,index.html win_exe/Program.cs
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -25,21 +33,21 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
-      - name: Unpack Android Project
-        run: echo "aW1wb3J0IGpzb24sIGJhc2U2NCwgb3MsIHNodXRpbAppZiBvcy5wYXRoLmV4aXN0cygnYXBwJyk6IHNodXRpbC5ybXRyZWUoJ2FwcCcpCmRhdGEgPSBqc29uLmxvYWQob3BlbigncGF5bG9hZC5qc29uJywgJ3InKSkKZm9yIGssIHYgaW4gZGF0YVsnZmlsZXMnXS5pdGVtcygpOgogICAgZCA9IG9zLnBhdGguZGlybmFtZShrKQogICAgaWYgZDogb3MubWFrZWRpcnMoZCwgZXhpc3Rfb2s9VHJ1ZSkKICAgIG9wZW4oaywgJ3diJykud3JpdGUoYmFzZTY0LmI2NGRlY29kZSh2KSkKb3MubWFrZWRpcnMoJ2Rpc3QnLCBleGlzdF9vaz1UcnVlKQpqc29uLmR1bXAoeydidWlsZElkJzogZGF0YVsnYnVpbGRJZCddLCAnc3RhdHVzJzogJ3JlYWR5J30sIG9wZW4oJ2Rpc3Qvc3RhdHVzLmpzb24nLCAndycpKQ==" | base64 -d | python3
-      - name: Compile Signed APK
+      - name: Compile Signed Android APK
         run: gradle assembleDebug --no-daemon --stacktrace
-      - name: Upload APK Artifact
+      - name: Upload APK and EXE Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Hasil-Aplikasi-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
-      - name: Publish Signed APK to Dist
+          name: Paket-Aplikasi-APK-dan-EXE
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            dist/output.exe
+      - name: Publish Signed APK and EXE to Dist
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk dist/output.apk
           git config user.name 'SmartAPK AutoBuilder'
           git config user.email 'autobuilder@smartwork.my.id'
-          git add -f dist/output.apk dist/status.json
-          git commit -m 'Publish Signed APK [skip ci]' || true
+          git add -f dist/output.apk dist/output.exe dist/status.json
+          git commit -m 'Publish Signed APK and EXE [skip ci]' || true
           git pull --rebase -X ours origin main || git pull --rebase -X ours origin master || true
           git push --force origin HEAD:main || git push --force origin HEAD:master || git push --force
